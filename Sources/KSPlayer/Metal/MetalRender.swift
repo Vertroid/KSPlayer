@@ -102,6 +102,13 @@ class MetalRender {
     public init() {
         worldTracking = WorldTrackingProvider()
         arSession = ARKitSession()
+        Task {
+            do {
+                try await arSession.run([worldTracking])
+            } catch {
+                fatalError("Failed to initialize ARSession")
+            }
+        }
     }
     
     func clear(drawable: MTLDrawable) {

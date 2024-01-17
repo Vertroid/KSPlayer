@@ -38,17 +38,6 @@ extension DisplayEnum {
             return DisplayEnum.vrBoxDiaplay.pipeline(planeCount: planeCount, bitDepth: bitDepth)
         }
     }
-
-    func touchesMoved(touch: UITouch) {
-        switch self {
-        case .vr:
-            DisplayEnum.vrDiaplay.touchesMoved(touch: touch)
-        case .vrBox:
-            DisplayEnum.vrBoxDiaplay.touchesMoved(touch: touch)
-        default:
-            break
-        }
-    }
 }
 
 private class PlaneDisplayModel {
@@ -149,21 +138,6 @@ private class SphereDisplayModel {
         encoder.setVertexBuffer(uvBuffer, offset: 0, index: 1)
     }
 
-    func touchesMoved(touch: UITouch) {
-        #if canImport(UIKit)
-        let view = touch.view
-        #else
-        let view: UIView? = nil
-        #endif
-        var distX = Float(touch.location(in: view).x - touch.previousLocation(in: view).x)
-        var distY = Float(touch.location(in: view).y - touch.previousLocation(in: view).y)
-        distX *= 0.005
-        distY *= 0.005
-        fingerRotationX -= distY * 60 / 100
-        fingerRotationY -= distX * 60 / 100
-        modelViewMatrix = matrix_identity_float4x4.rotateX(radians: fingerRotationX).rotateY(radians: fingerRotationY)
-    }
-
     func reset() {
         fingerRotationX = 0
         fingerRotationY = 0
@@ -178,7 +152,7 @@ private class SphereDisplayModel {
         var positions = [simd_float4]()
         var uvs = [simd_float2]()
         var runCount = 0
-        let radius = Float(1.0)
+        let radius = Float(10.0)
         let step = (2.0 * Float.pi) / Float(slicesCount)
         var i = UInt16(0)
         while i <= parallelsCount {
@@ -248,7 +222,7 @@ private class VRDisplayModel: SphereDisplayModel {
 
     override func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
         super.set(encoder: encoder, viewMatrix: viewMatrix)
-        var matrix = modelViewProjectionMatrix * modelViewMatrix
+        var matrix = modelViewProjectionMatrix * modelViewMatrix * viewMatrix
         let matrixBuffer = MetalRender.device.makeBuffer(bytes: &matrix, length: MemoryLayout<simd_float4x4>.size)
         encoder.setVertexBuffer(matrixBuffer, offset: 0, index: 2)
         encoder.drawIndexedPrimitives(type: primitiveType, indexCount: indexCount, indexType: indexType, indexBuffer: indexBuffer, indexBufferOffset: 0)

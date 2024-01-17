@@ -124,24 +124,6 @@ public final class MetalPlayView: UIView, VideoOutput {
         }
     }
 
-    #if canImport(UIKit)
-    override public func touchesMoved(_ touches: Set<UITouch>, with: UIEvent?) {
-        if options.display == .plane {
-            super.touchesMoved(touches, with: with)
-        } else {
-            options.display.touchesMoved(touch: touches.first!)
-        }
-    }
-    #else
-    override public func touchesMoved(with event: NSEvent) {
-        if options.display == .plane {
-            super.touchesMoved(with: event)
-        } else {
-            options.display.touchesMoved(touch: event.allTouches().first!)
-        }
-    }
-    #endif
-
     public func flush() {
         pixelBuffer = nil
         if displayView.isHidden {

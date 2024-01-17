@@ -157,7 +157,7 @@ public extension KSOptions {
         if bitDepth == 10 {
             return .bgr10a2Unorm
         } else {
-            return .bgra8Unorm
+            return .bgra8Unorm_srgb
         }
     }
 }
@@ -176,7 +176,6 @@ public struct Timebase {
     public let num: Int32
     public let den: Int32
     func getPosition(from seconds: TimeInterval) -> Int64 { Int64(seconds * TimeInterval(den) / TimeInterval(num)) }
-
     func cmtime(for timestamp: Int64) -> CMTime { CMTime(value: timestamp * Int64(num), timescale: den) }
 }
 

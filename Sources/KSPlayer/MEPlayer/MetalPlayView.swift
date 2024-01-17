@@ -75,6 +75,7 @@ public final class MetalPlayView: UIView, VideoOutput {
         super.init(frame: .zero)
         addSubview(displayView)
         addSubview(metalView)
+        metalView.options = options
         metalView.isHidden = true
         //        displayLink = CADisplayLink(block: renderFrame)
         displayLink = CADisplayLink(target: self, selector: #selector(renderFrame))
@@ -240,7 +241,14 @@ extension MetalPlayView {
 }
 
 class MetalView: UIView {
+    public var options: KSOptions? {
+        willSet {
+            MetalRender.options = newValue
+        }
+    }
+    
     private let render = MetalRender()
+
     #if canImport(UIKit)
     override public class var layerClass: AnyClass { CAMetalLayer.self }
     #endif
@@ -297,7 +305,11 @@ class MetalView: UIView {
             KSLog("[video] CAMetalLayer not readyForMoreMediaData")
             return
         }
-        render.draw(pixelBuffer: pixelBuffer, display: display, drawable: drawable)
+        if options?.display == .plane {
+            render.draw(pixelBuffer: pixelBuffer, display: display, drawable: drawable)
+        } else {
+            render.drawImmersive(pixelBuffer: pixelBuffer, display: display)
+        }
     }
 }
 

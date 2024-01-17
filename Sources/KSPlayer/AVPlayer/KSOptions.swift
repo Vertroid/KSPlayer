@@ -10,7 +10,10 @@ import OSLog
 #if canImport(UIKit)
 import UIKit
 #endif
+import CompositorServices
+
 open class KSOptions {
+    public var layerRenderer: LayerRenderer?
     /// 最低缓存视频时间
     @Published
     public var preferredForwardBufferDuration = KSOptions.preferredForwardBufferDuration

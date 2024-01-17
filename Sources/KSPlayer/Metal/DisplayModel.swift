@@ -17,14 +17,14 @@ extension DisplayEnum {
     private static var vrDiaplay = VRDisplayModel()
     private static var vrBoxDiaplay = VRBoxDisplayModel()
 
-    func set(encoder: MTLRenderCommandEncoder) {
+    func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
         switch self {
         case .plane:
-            DisplayEnum.planeDisplay.set(encoder: encoder)
+            DisplayEnum.planeDisplay.set(encoder: encoder, viewMatrix: viewMatrix)
         case .vr:
-            DisplayEnum.vrDiaplay.set(encoder: encoder)
+            DisplayEnum.vrDiaplay.set(encoder: encoder, viewMatrix: viewMatrix)
         case .vrBox:
-            DisplayEnum.vrBoxDiaplay.set(encoder: encoder)
+            DisplayEnum.vrBoxDiaplay.set(encoder: encoder, viewMatrix: viewMatrix)
         }
     }
 
@@ -90,7 +90,7 @@ private class PlaneDisplayModel {
         return (indices, positions, uvs)
     }
 
-    func set(encoder: MTLRenderCommandEncoder) {
+    func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
         encoder.setFrontFacing(.clockwise)
         encoder.setVertexBuffer(posBuffer, offset: 0, index: 0)
         encoder.setVertexBuffer(uvBuffer, offset: 0, index: 1)
@@ -141,22 +141,12 @@ private class SphereDisplayModel {
         indexBuffer = device.makeBuffer(bytes: indices, length: MemoryLayout<UInt16>.size * indexCount)!
         posBuffer = device.makeBuffer(bytes: positions, length: MemoryLayout<simd_float4>.size * positions.count)
         uvBuffer = device.makeBuffer(bytes: uvs, length: MemoryLayout<simd_float2>.size * uvs.count)
-        #if canImport(UIKit) && canImport(CoreMotion)
-        if KSOptions.enableSensor {
-            MotionSensor.shared.start()
-        }
-        #endif
     }
 
-    func set(encoder: MTLRenderCommandEncoder) {
+    func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
         encoder.setFrontFacing(.clockwise)
         encoder.setVertexBuffer(posBuffer, offset: 0, index: 0)
         encoder.setVertexBuffer(uvBuffer, offset: 0, index: 1)
-        #if canImport(UIKit) && canImport(CoreMotion)
-        if KSOptions.enableSensor, let matrix = MotionSensor.shared.matrix() {
-            modelViewMatrix = matrix
-        }
-        #endif
     }
 
     func touchesMoved(touch: UITouch) {
@@ -256,8 +246,8 @@ private class VRDisplayModel: SphereDisplayModel {
         super.init()
     }
 
-    override func set(encoder: MTLRenderCommandEncoder) {
-        super.set(encoder: encoder)
+    override func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
+        super.set(encoder: encoder, viewMatrix: viewMatrix)
         var matrix = modelViewProjectionMatrix * modelViewMatrix
         let matrixBuffer = MetalRender.device.makeBuffer(bytes: &matrix, length: MemoryLayout<simd_float4x4>.size)
         encoder.setVertexBuffer(matrixBuffer, offset: 0, index: 2)
@@ -279,8 +269,8 @@ private class VRBoxDisplayModel: SphereDisplayModel {
         super.init()
     }
 
-    override func set(encoder: MTLRenderCommandEncoder) {
-        super.set(encoder: encoder)
+    override func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
+        super.set(encoder: encoder, viewMatrix: viewMatrix)
         let layerSize = KSOptions.sceneSize
         let width = Double(layerSize.width / 2)
         [(modelViewProjectionMatrixLeft, MTLViewport(originX: 0, originY: 0, width: width, height: Double(layerSize.height), znear: 0, zfar: 0)),

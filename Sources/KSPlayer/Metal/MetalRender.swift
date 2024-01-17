@@ -10,8 +10,31 @@ import Foundation
 import Metal
 import QuartzCore
 import simd
+import CompositorServices
+
+struct Uniforms {
+    var projectionMatrix: simd_float4x4
+    var modelViewMatrix: simd_float4x4
+}
+
+struct UniformsArray {
+    var uniforms: (Uniforms, Uniforms)
+}
+
+extension LayerRenderer.Clock.Instant.Duration {
+    var timeInterval: TimeInterval {
+        let nanoseconds = TimeInterval(components.attoseconds / 1_000_000_000)
+        return TimeInterval(components.seconds) + (nanoseconds / TimeInterval(NSEC_PER_SEC))
+    }
+}
+
+let alignedUniformsSize = (MemoryLayout<UniformsArray>.size + 0xFF) & -0x100
+let maxBuffersInFlight = 3
+
 class MetalRender {
+    static var options: KSOptions? = KSOptions()
     static let device = MTLCreateSystemDefaultDevice()!
+    let inFlightSemaphore = DispatchSemaphore(value: maxBuffersInFlight)
     static let library: MTLLibrary = {
         var library: MTLLibrary!
         library = device.makeDefaultLibrary()
@@ -21,6 +44,8 @@ class MetalRender {
         return library
     }()
 
+    private let worldTracking: WorldTrackingProvider
+    private let arSession: ARKitSession
     private let renderPassDescriptor = MTLRenderPassDescriptor()
     private let commandQueue = MetalRender.device.makeCommandQueue()
     private lazy var samplerState: MTLSamplerState? = {
@@ -74,6 +99,11 @@ class MetalRender {
         return buffer
     }()
 
+    public init() {
+        worldTracking = WorldTrackingProvider()
+        arSession = ARKitSession()
+    }
+    
     func clear(drawable: MTLDrawable) {
         renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
@@ -103,12 +133,70 @@ class MetalRender {
             encoder.setFragmentTexture(texture, index: index)
         }
         setFragmentBuffer(pixelBuffer: pixelBuffer, encoder: encoder)
-        display.set(encoder: encoder)
+        display.set(encoder: encoder, viewMatrix: simd_float4x4())
         encoder.popDebugGroup()
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+    }
+    
+    func drawImmersive(pixelBuffer: PixelBufferProtocol, display: DisplayEnum = .plane) {
+        guard let layerRenderer = MetalRender.options?.layerRenderer else {
+            return
+        }
+        guard let frame = layerRenderer.queryNextFrame() else { return }
+        
+        frame.startUpdate()
+        
+        frame.endUpdate()
+        
+        guard let timing = frame.predictTiming() else { return }
+        LayerRenderer.Clock().wait(until: timing.optimalInputTime)
+        
+        guard let drawable = frame.queryDrawable() else { return }
+        
+        _ = inFlightSemaphore.wait(timeout: DispatchTime.distantFuture)
+        
+        frame.startSubmission()
+        
+        let time = LayerRenderer.Clock.Instant.epoch.duration(to: drawable.frameTiming.presentationTime).timeInterval
+        let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: time)
+        
+        drawable.deviceAnchor = deviceAnchor
+    
+        let inputTextures = pixelBuffer.textures()
+        renderPassDescriptor.colorAttachments[0].texture = drawable.colorTextures[0]
+        guard !inputTextures.isEmpty, let commandBuffer = commandQueue!.makeCommandBuffer(), let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
+            return
+        }
+        
+        let semaphore = inFlightSemaphore
+        commandBuffer.addCompletedHandler { (_ commandBuffer)-> Swift.Void in
+            semaphore.signal()
+        }
+        
+        encoder.pushDebugGroup("RenderFrame")
+        let state = display.pipeline(planeCount: pixelBuffer.planeCount, bitDepth: pixelBuffer.bitDepth)
+        encoder.setRenderPipelineState(state)
+        
+        let simdDeviceAnchor = deviceAnchor?.originFromAnchorTransform ?? matrix_identity_float4x4
+        let viewMatrix = (simdDeviceAnchor * drawable.views[0].transform).inverse
+        
+        encoder.setFragmentSamplerState(samplerState, index: 0)
+        for (index, texture) in inputTextures.enumerated() {
+            texture.label = "texture\(index)"
+            encoder.setFragmentTexture(texture, index: index)
+        }
+        setFragmentBuffer(pixelBuffer: pixelBuffer, encoder: encoder)
+        display.set(encoder: encoder, viewMatrix: viewMatrix)
+        encoder.popDebugGroup()
+        encoder.endEncoding()
+        drawable.encodePresent(commandBuffer: commandBuffer)
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        
+        frame.endSubmission()
     }
 
     private func setFragmentBuffer(pixelBuffer: PixelBufferProtocol, encoder: MTLRenderCommandEncoder) {

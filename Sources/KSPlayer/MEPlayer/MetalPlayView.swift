@@ -97,7 +97,7 @@ public final class MetalPlayView: UIView, VideoOutput {
     }
 
     public func pause() {
-        //displayLink.isPaused = true
+        displayLink.isPaused = true
     }
 
     @available(*, unavailable)

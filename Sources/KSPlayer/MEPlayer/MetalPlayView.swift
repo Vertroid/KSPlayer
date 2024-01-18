@@ -103,12 +103,12 @@ public final class MetalPlayView: UIView, VideoOutput {
     override public func didAddSubview(_ subview: UIView) {
         super.didAddSubview(subview)
         subview.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            //subview.leftAnchor.constraint(equalTo: leftAnchor),
-            subview.topAnchor.constraint(equalTo: topAnchor),
-            //subview.rightAnchor.constraint(equalTo: rightAnchor),
-            subview.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
+//        NSLayoutConstraint.activate([
+//            //subview.leftAnchor.constraint(equalTo: leftAnchor),
+//            subview.topAnchor.constraint(equalTo: topAnchor),
+//            subview.bottomAnchor.constraint(equalTo: bottomAnchor),
+//            //subview.rightAnchor.constraint(equalTo: rightAnchor),
+//        ])
     }
 
     override public var contentMode: UIViewContentMode {
@@ -154,14 +154,28 @@ public final class MetalPlayView: UIView, VideoOutput {
             return
         }
         let par = pixelBuffer.size
-        let displayWidth = CGFloat(par.width / par.height) * displayView.frame.size.height
-        let displayHeight = displayView.frame.size.height
+        let sar = pixelBuffer.aspectRatio
+        let frameWidth = self.frame.size.width
+        let frameHeight = self.frame.size.height
+        let frameRatio = frameWidth / frameHeight
+        var displayWidth = par.width * (sar.width / sar.height)
+        var displayHeight = par.height
+        let displayRatio = displayWidth / displayHeight
         displayView.layer.cornerRadius = 40
         displayView.layer.masksToBounds = true
+        if frameRatio > displayRatio {
+            displayHeight = frameHeight
+            displayWidth = frameHeight * displayRatio
+        } else {
+            displayWidth = frameWidth
+            displayHeight = frameWidth / displayRatio
+        }
+
         NSLayoutConstraint.activate([
             displayView.centerXAnchor.constraint(equalTo: self.centerXAnchor),
             displayView.widthAnchor.constraint(equalToConstant: displayWidth),
             displayView.heightAnchor.constraint(equalToConstant: displayHeight)
+            
         ])
     }
 //    deinit {
@@ -331,7 +345,7 @@ class AVSampleBufferDisplayView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        self.backgroundColor = .systemPink
+        self.backgroundColor = .black
         #if !canImport(UIKit)
         layer = AVSampleBufferDisplayLayer()
         #endif
@@ -350,6 +364,9 @@ class AVSampleBufferDisplayView: UIView {
     }
 
     func enqueue(imageBuffer: CVPixelBuffer, formatDescription: CMVideoFormatDescription, time: CMTime) {
+        let size = imageBuffer.size
+        let width = size.width
+        let height = size.height
         let timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .zero, decodeTimeStamp: .invalid)
         //        var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: time, decodeTimeStamp: .invalid)
         var sampleBuffer: CMSampleBuffer?

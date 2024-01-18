@@ -24,6 +24,7 @@ public protocol VideoOutput: FrameOutput {
     func invalidate()
     func play()
     func readNextFrame()
+    func resize()
 }
 
 public final class MetalPlayView: UIView, VideoOutput {
@@ -81,11 +82,13 @@ public final class MetalPlayView: UIView, VideoOutput {
         displayLink = CADisplayLink(target: self, selector: #selector(renderFrame))
         // 一定要用common。不然在视频上面操作view的话，那就会卡顿了。
         displayLink.add(to: .main, forMode: .common)
+        
         pause()
     }
 
     public func play() {
         displayLink.isPaused = false
+        resize()
     }
 
     public func pause() {
@@ -101,10 +104,10 @@ public final class MetalPlayView: UIView, VideoOutput {
         super.didAddSubview(subview)
         subview.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            subview.leftAnchor.constraint(equalTo: leftAnchor),
+            //subview.leftAnchor.constraint(equalTo: leftAnchor),
             subview.topAnchor.constraint(equalTo: topAnchor),
-            subview.bottomAnchor.constraint(equalTo: bottomAnchor),
-            subview.rightAnchor.constraint(equalTo: rightAnchor),
+            //subview.rightAnchor.constraint(equalTo: rightAnchor),
+            subview.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
 
@@ -124,6 +127,7 @@ public final class MetalPlayView: UIView, VideoOutput {
         }
     }
 
+
     public func flush() {
         pixelBuffer = nil
         if displayView.isHidden {
@@ -141,6 +145,25 @@ public final class MetalPlayView: UIView, VideoOutput {
         draw(force: true)
     }
 
+    public func resize() {
+        guard let frame = renderSource?.getVideoOutputRender(force: true) else {
+            return
+        }
+        pixelBuffer = frame.corePixelBuffer
+        guard let pixelBuffer else {
+            return
+        }
+        let par = pixelBuffer.size
+        let displayWidth = CGFloat(par.width / par.height) * displayView.frame.size.height
+        let displayHeight = displayView.frame.size.height
+        displayView.layer.cornerRadius = 40
+        displayView.layer.masksToBounds = true
+        NSLayoutConstraint.activate([
+            displayView.centerXAnchor.constraint(equalTo: self.centerXAnchor),
+            displayView.widthAnchor.constraint(equalToConstant: displayWidth),
+            displayView.heightAnchor.constraint(equalToConstant: displayHeight)
+        ])
+    }
 //    deinit {
 //        print()
 //    }
@@ -245,6 +268,7 @@ class MetalView: UIView {
         #if !canImport(UIKit)
         layer = CAMetalLayer()
         #endif
+        self.backgroundColor = .red
         metalLayer.device = MetalRender.device
         metalLayer.framebufferOnly = true
 //        metalLayer.displaySyncEnabled = false
@@ -307,6 +331,7 @@ class AVSampleBufferDisplayView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        self.backgroundColor = .systemPink
         #if !canImport(UIKit)
         layer = AVSampleBufferDisplayLayer()
         #endif
@@ -355,77 +380,3 @@ class AVSampleBufferDisplayView: UIView {
         }
     }
 }
-
-#if os(macOS)
-import CoreVideo
-class CADisplayLink {
-    private let displayLink: CVDisplayLink
-    private var runloop: RunLoop?
-    private var mode = RunLoop.Mode.default
-    public var preferredFramesPerSecond = 60
-    public var timestamp: TimeInterval {
-        var timeStamp = CVTimeStamp()
-        if CVDisplayLinkGetCurrentTime(displayLink, &timeStamp) == kCVReturnSuccess, (timeStamp.flags & CVTimeStampFlags.hostTimeValid.rawValue) != 0 {
-            return TimeInterval(timeStamp.hostTime / NSEC_PER_SEC)
-        }
-        return 0
-    }
-
-    public var duration: TimeInterval {
-        CVDisplayLinkGetActualOutputVideoRefreshPeriod(displayLink)
-    }
-
-    public var targetTimestamp: TimeInterval {
-        duration + timestamp
-    }
-
-    public var isPaused: Bool {
-        get {
-            !CVDisplayLinkIsRunning(displayLink)
-        }
-        set {
-            if newValue {
-                CVDisplayLinkStop(displayLink)
-            } else {
-                CVDisplayLinkStart(displayLink)
-            }
-        }
-    }
-
-    public init(target: NSObject, selector: Selector) {
-        var displayLink: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-        self.displayLink = displayLink!
-        CVDisplayLinkSetOutputHandler(self.displayLink) { [weak self] _, _, _, _, _ in
-            guard let self else { return kCVReturnSuccess }
-            self.runloop?.perform(selector, target: target, argument: self, order: 0, modes: [self.mode])
-            return kCVReturnSuccess
-        }
-        CVDisplayLinkStart(self.displayLink)
-    }
-
-    public init(block: @escaping (() -> Void)) {
-        var displayLink: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-        self.displayLink = displayLink!
-        CVDisplayLinkSetOutputHandler(self.displayLink) { _, _, _, _, _ in
-            block()
-            return kCVReturnSuccess
-        }
-        CVDisplayLinkStart(self.displayLink)
-    }
-
-    open func add(to runloop: RunLoop, forMode mode: RunLoop.Mode) {
-        self.runloop = runloop
-        self.mode = mode
-    }
-
-    public func invalidate() {
-        isPaused = true
-        runloop = nil
-        CVDisplayLinkSetOutputHandler(displayLink) { _, _, _, _, _ in
-            kCVReturnError
-        }
-    }
-}
-#endif

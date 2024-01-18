@@ -142,6 +142,7 @@ open class KSPlayerLayer: UIView {
                     self.delegate?.player(layer: self, state: self.state)
                 }
             }
+            
         }
     }
 
@@ -315,15 +316,14 @@ open class KSPlayerLayer: UIView {
 
     override open func didAddSubview(_ subview: UIView) {
         super.didAddSubview(subview)
+    
         if subview == player.view {
-            subview.layer.cornerRadius = 50
-            subview.layer.masksToBounds = true
             subview.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                subview.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 55),
+                subview.leftAnchor.constraint(equalTo: leftAnchor),
                 subview.topAnchor.constraint(equalTo: topAnchor ),
                 subview.bottomAnchor.constraint(equalTo: bottomAnchor),
-                subview.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -55),
+                subview.rightAnchor.constraint(equalTo: rightAnchor),
             ])
         }
     }
@@ -334,29 +334,8 @@ open class KSPlayerLayer: UIView {
 
 extension KSPlayerLayer: MediaPlayerDelegate {
     public func readyToPlay(player: some MediaPlayerProtocol) {
-        #if os(macOS)
-        if let window {
-            window.isMovableByWindowBackground = true
-            if options.automaticWindowResize {
-                let naturalSize = player.naturalSize
-                if naturalSize.width > 0, naturalSize.height > 0 {
-                    window.aspectRatio = naturalSize
-                    var frame = window.frame
-                    frame.size.height = frame.width * naturalSize.height / naturalSize.width
-                    window.setFrame(frame, display: true)
-                }
-            }
-        }
-        #endif
         updateNowPlayingInfo()
         state = .readyToPlay
-        #if os(iOS)
-        if #available(iOS 14.2, *) {
-            if options.canStartPictureInPictureAutomaticallyFromInline {
-                player.pipController?.canStartPictureInPictureAutomaticallyFromInline = true
-            }
-        }
-        #endif
         if isAutoPlay {
             if shouldSeekTo > 0 {
                 seek(time: shouldSeekTo, autoPlay: true) { [weak self] _ in
@@ -636,18 +615,6 @@ extension KSPlayerLayer {
         }
     }
 
-    #if canImport(UIKit) && !os(xrOS)
-    @objc private func wirelessRouteActiveDidChange(notification: Notification) {
-        guard let volumeView = notification.object as? MPVolumeView, isWirelessRouteActive != volumeView.isWirelessRouteActive else { return }
-        if volumeView.isWirelessRouteActive {
-            if !player.allowsExternalPlayback {
-                isWirelessRouteActive = true
-            }
-            player.usesExternalPlaybackWhileExternalScreenIsActive = true
-        }
-        isWirelessRouteActive = volumeView.isWirelessRouteActive
-    }
-    #endif
     #if !os(macOS)
     @objc private func audioInterrupted(notification: Notification) {
         guard let userInfo = notification.userInfo,
@@ -674,3 +641,4 @@ extension KSPlayerLayer {
     }
     #endif
 }
+

@@ -316,15 +316,18 @@ open class KSPlayerLayer: UIView {
     override open func didAddSubview(_ subview: UIView) {
         super.didAddSubview(subview)
         if subview == player.view {
+            subview.layer.cornerRadius = 50
+            subview.layer.masksToBounds = true
             subview.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                subview.leftAnchor.constraint(equalTo: leftAnchor),
-                subview.topAnchor.constraint(equalTo: topAnchor),
+                subview.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 55),
+                subview.topAnchor.constraint(equalTo: topAnchor ),
                 subview.bottomAnchor.constraint(equalTo: bottomAnchor),
-                subview.rightAnchor.constraint(equalTo: rightAnchor),
+                subview.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -55),
             ])
         }
     }
+    
 }
 
 // MARK: - MediaPlayerDelegate

@@ -70,9 +70,14 @@ public final class MetalPlayView: UIView, VideoOutput {
     }
 
     private let metalView = MetalView()
+    private var lastSize: CGSize = .zero
+    private var customWidthConstraint: NSLayoutConstraint
+    private var customHeightConstraint: NSLayoutConstraint
     public weak var displayLayerDelegate: DisplayLayerDelegate?
     public init(options: KSOptions) {
         self.options = options
+        self.customWidthConstraint = displayView.widthAnchor.constraint(equalToConstant: 1)
+        self.customHeightConstraint = displayView.heightAnchor.constraint(equalToConstant: 1)
         super.init(frame: .zero)
         addSubview(displayView)
         addSubview(metalView)
@@ -92,7 +97,7 @@ public final class MetalPlayView: UIView, VideoOutput {
     }
 
     public func pause() {
-        displayLink.isPaused = true
+        //displayLink.isPaused = true
     }
 
     @available(*, unavailable)
@@ -109,6 +114,15 @@ public final class MetalPlayView: UIView, VideoOutput {
 //            subview.bottomAnchor.constraint(equalTo: bottomAnchor),
 //            //subview.rightAnchor.constraint(equalTo: rightAnchor),
 //        ])
+    }
+    
+    override public func layoutSubviews() {
+        super.layoutSubviews()
+        
+        if lastSize != bounds.size {
+            lastSize = bounds.size
+            resize()
+        }
     }
 
     override public var contentMode: UIViewContentMode {
@@ -155,8 +169,8 @@ public final class MetalPlayView: UIView, VideoOutput {
         }
         let par = pixelBuffer.size
         let sar = pixelBuffer.aspectRatio
-        let frameWidth = self.frame.size.width
-        let frameHeight = self.frame.size.height
+        let frameWidth = bounds.size.width
+        let frameHeight = bounds.size.height
         let frameRatio = frameWidth / frameHeight
         var displayWidth = par.width * (sar.width / sar.height)
         var displayHeight = par.height
@@ -170,12 +184,20 @@ public final class MetalPlayView: UIView, VideoOutput {
             displayWidth = frameWidth
             displayHeight = frameWidth / displayRatio
         }
+        
+        NSLayoutConstraint.deactivate([
+            customWidthConstraint,
+            customHeightConstraint
+        ])
+        
+        customWidthConstraint = displayView.widthAnchor.constraint(equalToConstant: displayWidth)
+        customHeightConstraint = displayView.heightAnchor.constraint(equalToConstant: displayHeight)
 
         NSLayoutConstraint.activate([
             displayView.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-            displayView.widthAnchor.constraint(equalToConstant: displayWidth),
-            displayView.heightAnchor.constraint(equalToConstant: displayHeight)
-            
+            displayView.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+            customWidthConstraint,
+            customHeightConstraint
         ])
     }
 //    deinit {

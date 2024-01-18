@@ -327,7 +327,6 @@ open class KSPlayerLayer: UIView {
             ])
         }
     }
-    
 }
 
 // MARK: - MediaPlayerDelegate

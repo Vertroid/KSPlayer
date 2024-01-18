@@ -56,16 +56,6 @@ public struct KSVideoPlayerView: View {
                 .onBufferChanged { bufferedCount, consumeTime in
                     print("bufferedCount \(bufferedCount), consumeTime \(consumeTime)")
                 }
-            #if canImport(UIKit)
-                .onSwipe { direction in
-                    playerCoordinator.isMaskShow = true
-                    if direction == .left {
-                        playerCoordinator.skip(interval: -15)
-                    } else if direction == .right {
-                        playerCoordinator.skip(interval: 15)
-                    }
-                }
-            #endif
                 .onAppear {
                     if let subtitleDataSouce {
                         playerCoordinator.subtitleModel.addSubtitle(dataSouce: subtitleDataSouce)

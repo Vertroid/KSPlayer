@@ -36,18 +36,6 @@ extension KSVideoPlayer: UIViewRepresentable {
     public typealias UIViewType = KSPlayerLayer
     public func makeUIView(context: Context) -> UIViewType {
         let view = context.coordinator.makeView(url: url, options: options)
-        let swipeDown = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swipeGestureAction(_:)))
-        swipeDown.direction = .down
-        view.addGestureRecognizer(swipeDown)
-        let swipeLeft = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swipeGestureAction(_:)))
-        swipeLeft.direction = .left
-        view.addGestureRecognizer(swipeLeft)
-        let swipeRight = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swipeGestureAction(_:)))
-        swipeRight.direction = .right
-        view.addGestureRecognizer(swipeRight)
-        let swipeUp = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swipeGestureAction(_:)))
-        swipeUp.direction = .up
-        view.addGestureRecognizer(swipeUp)
         return view
     }
 
@@ -151,12 +139,6 @@ extension KSVideoPlayer: UIViewRepresentable {
         fileprivate var onFinish: ((KSPlayerLayer, Error?) -> Void)?
         fileprivate var onStateChanged: ((KSPlayerLayer, KSPlayerState) -> Void)?
         fileprivate var onBufferChanged: ((Int, TimeInterval) -> Void)?
-        #if canImport(UIKit)
-        fileprivate var onSwipe: ((UISwipeGestureRecognizer.Direction) -> Void)?
-        @objc fileprivate func swipeGestureAction(_ recognizer: UISwipeGestureRecognizer) {
-            onSwipe?(recognizer.direction)
-        }
-        #endif
 
         public init() {}
 
@@ -187,9 +169,6 @@ extension KSVideoPlayer: UIViewRepresentable {
             onPlay = nil
             onFinish = nil
             onBufferChanged = nil
-            #if canImport(UIKit)
-            onSwipe = nil
-            #endif
             playerLayer = nil
             delayItem?.cancel()
             delayItem = nil
@@ -283,13 +262,6 @@ public extension KSVideoPlayer {
         coordinator.onStateChanged = handler
         return self
     }
-
-    #if canImport(UIKit)
-    func onSwipe(_ handler: @escaping (UISwipeGestureRecognizer.Direction) -> Void) -> Self {
-        coordinator.onSwipe = handler
-        return self
-    }
-    #endif
 }
 
 extension View {

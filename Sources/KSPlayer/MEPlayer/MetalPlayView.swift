@@ -71,13 +71,17 @@ public final class MetalPlayView: UIView, VideoOutput {
 
     private let metalView = MetalView()
     private var lastSize: CGSize = .zero
-    private var customWidthConstraint: NSLayoutConstraint
-    private var customHeightConstraint: NSLayoutConstraint
+    private var metalViewWidthConstraint: NSLayoutConstraint
+    private var metalViewHeightConstraint: NSLayoutConstraint
+    private var displayViewWidthConstraint: NSLayoutConstraint
+    private var displayViewHeightConstraint: NSLayoutConstraint
     public weak var displayLayerDelegate: DisplayLayerDelegate?
     public init(options: KSOptions) {
         self.options = options
-        self.customWidthConstraint = displayView.widthAnchor.constraint(equalToConstant: 1)
-        self.customHeightConstraint = displayView.heightAnchor.constraint(equalToConstant: 1)
+        self.metalViewWidthConstraint = metalView.widthAnchor.constraint(equalToConstant: 1)
+        self.metalViewHeightConstraint = metalView.heightAnchor.constraint(equalToConstant: 1)
+        self.displayViewWidthConstraint = displayView.widthAnchor.constraint(equalToConstant: 1)
+        self.displayViewHeightConstraint = displayView.heightAnchor.constraint(equalToConstant: 1)
         super.init(frame: .zero)
         addSubview(displayView)
         addSubview(metalView)
@@ -108,12 +112,10 @@ public final class MetalPlayView: UIView, VideoOutput {
     override public func didAddSubview(_ subview: UIView) {
         super.didAddSubview(subview)
         subview.translatesAutoresizingMaskIntoConstraints = false
-//        NSLayoutConstraint.activate([
-//            //subview.leftAnchor.constraint(equalTo: leftAnchor),
-//            subview.topAnchor.constraint(equalTo: topAnchor),
-//            subview.bottomAnchor.constraint(equalTo: bottomAnchor),
-//            //subview.rightAnchor.constraint(equalTo: rightAnchor),
-//        ])
+        NSLayoutConstraint.activate([
+            subview.centerXAnchor.constraint(equalTo: self.centerXAnchor),
+            subview.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+        ])
     }
     
     override public func layoutSubviews() {
@@ -175,8 +177,12 @@ public final class MetalPlayView: UIView, VideoOutput {
         var displayWidth = par.width * (sar.width / sar.height)
         var displayHeight = par.height
         let displayRatio = displayWidth / displayHeight
-        displayView.layer.cornerRadius = 40
-        displayView.layer.masksToBounds = true
+        if options.isRoundRectangle {
+            metalView.layer.cornerRadius = options.cornerRadius
+            metalView.layer.masksToBounds = true
+            displayView.layer.cornerRadius = options.cornerRadius
+            displayView.layer.masksToBounds = true
+        }
         if frameRatio > displayRatio {
             displayHeight = frameHeight
             displayWidth = frameHeight * displayRatio
@@ -186,18 +192,23 @@ public final class MetalPlayView: UIView, VideoOutput {
         }
         
         NSLayoutConstraint.deactivate([
-            customWidthConstraint,
-            customHeightConstraint
+            metalViewWidthConstraint,
+            metalViewHeightConstraint,
+            displayViewWidthConstraint,
+            displayViewHeightConstraint
         ])
         
-        customWidthConstraint = displayView.widthAnchor.constraint(equalToConstant: displayWidth)
-        customHeightConstraint = displayView.heightAnchor.constraint(equalToConstant: displayHeight)
+        metalViewWidthConstraint = metalView.widthAnchor.constraint(equalToConstant: displayWidth)
+        metalViewHeightConstraint = metalView.heightAnchor.constraint(equalToConstant: displayHeight)
+        displayViewWidthConstraint = displayView.widthAnchor.constraint(equalToConstant: displayWidth)
+        displayViewHeightConstraint = displayView.heightAnchor.constraint(equalToConstant: displayHeight)
 
         NSLayoutConstraint.activate([
-            displayView.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-            displayView.centerYAnchor.constraint(equalTo: self.centerYAnchor),
-            customWidthConstraint,
-            customHeightConstraint
+            metalViewWidthConstraint,
+            metalViewHeightConstraint,
+            
+            displayViewWidthConstraint,
+            displayViewHeightConstraint
         ])
     }
 //    deinit {
@@ -304,7 +315,6 @@ class MetalView: UIView {
         #if !canImport(UIKit)
         layer = CAMetalLayer()
         #endif
-        self.backgroundColor = .red
         metalLayer.device = MetalRender.device
         metalLayer.framebufferOnly = true
 //        metalLayer.displaySyncEnabled = false
@@ -323,7 +333,9 @@ class MetalView: UIView {
 
     func draw(pixelBuffer: PixelBufferProtocol, display: DisplayEnum, size: CGSize) {
         metalLayer.drawableSize = size
-        metalLayer.pixelFormat = KSOptions.colorPixelFormat(bitDepth: pixelBuffer.bitDepth)
+        let colorPixelFormat = KSOptions.colorPixelFormat(bitDepth: pixelBuffer.bitDepth)
+        metalLayer.pixelFormat = colorPixelFormat
+        options?.pixelFormat = colorPixelFormat
         let colorspace = pixelBuffer.colorspace
         if metalLayer.colorspace != colorspace {
             metalLayer.colorspace = colorspace
@@ -348,7 +360,7 @@ class MetalView: UIView {
             return
         }
         if options?.display == .plane {
-            render.draw(pixelBuffer: pixelBuffer, display: display, drawable: drawable)
+            render.drawPlane(pixelBuffer: pixelBuffer, display: display, drawable: drawable)
         } else {
             render.drawImmersive(pixelBuffer: pixelBuffer, display: display)
         }

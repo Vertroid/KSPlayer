@@ -14,6 +14,10 @@ import CompositorServices
 
 open class KSOptions {
     public var layerRenderer: LayerRenderer?
+    public var pixelFormat: MTLPixelFormat = .bgra8Unorm
+    
+    public var isRoundRectangle = true
+    public var cornerRadius: CGFloat = 40
     /// 最低缓存视频时间
     @Published
     public var preferredForwardBufferDuration = KSOptions.preferredForwardBufferDuration
@@ -80,6 +84,7 @@ open class KSOptions {
     public var isSeekImageSubtitle = false
     // video
     public var display = DisplayEnum.plane
+    public var stereo = StereoEnum.mono
     public var videoDelay = 0.0 // s
     public var autoDeInterlace = false
     public var autoRotate = true
@@ -253,7 +258,7 @@ open class KSOptions {
 
     // 虽然只有iOS才支持PIP。但是因为AVSampleBufferDisplayLayer能够支持HDR10+。所以默认还是推荐用AVSampleBufferDisplayLayer
     open func isUseDisplayLayer() -> Bool {
-        display == .plane
+        display == .plane && stereo == .mono
     }
 
     open func urlIO(log: String) {

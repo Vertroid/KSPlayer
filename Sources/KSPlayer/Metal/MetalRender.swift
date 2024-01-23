@@ -12,6 +12,11 @@ import QuartzCore
 import simd
 import CompositorServices
 
+struct CustomData {
+    public var stereoMode: Int = 0
+    public var frameCounter: UInt32 = 0
+}
+
 struct Uniforms {
     var projectionMatrix: simd_float4x4
     var modelViewMatrix: simd_float4x4
@@ -44,6 +49,7 @@ class MetalRender {
         return library
     }()
 
+    private var customBuffer: CustomData
     private let worldTracking: WorldTrackingProvider
     private let arSession: ARKitSession
     private let renderPassDescriptor = MTLRenderPassDescriptor()
@@ -98,8 +104,15 @@ class MetalRender {
         buffer?.label = "leftShit"
         return buffer
     }()
+    
+    private lazy var customDataBuffer: MTLBuffer? = {
+        let buffer = MetalRender.device.makeBuffer(length: MemoryLayout<CustomData>.size, options: .storageModeShared)
+        buffer?.label = "customData"
+        return buffer
+    }()
 
     public init() {
+        customBuffer = CustomData()
         worldTracking = WorldTrackingProvider()
         arSession = ARKitSession()
         Task {
@@ -125,7 +138,7 @@ class MetalRender {
         commandBuffer.waitUntilCompleted()
     }
 
-    func draw(pixelBuffer: PixelBufferProtocol, display: DisplayEnum = .plane, drawable: CAMetalDrawable) {
+    func drawPlane(pixelBuffer: PixelBufferProtocol, display: DisplayEnum = .plane, drawable: CAMetalDrawable) {
         let inputTextures = pixelBuffer.textures()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
         guard !inputTextures.isEmpty, let commandBuffer = commandQueue?.makeCommandBuffer(), let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
@@ -205,6 +218,13 @@ class MetalRender {
         
         frame.endSubmission()
     }
+    
+    func updateCustomDataBuffer() {
+        customBuffer.stereoMode = (MetalRender.options?.stereo.rawValue)!
+        customBuffer.frameCounter &+= 1
+        let bufferPointer = customDataBuffer?.contents()
+        bufferPointer!.copyMemory(from: &customBuffer, byteCount: MemoryLayout<CustomData>.size)
+    }
 
     private func setFragmentBuffer(pixelBuffer: PixelBufferProtocol, encoder: MTLRenderCommandEncoder) {
         if pixelBuffer.planeCount > 1 {
@@ -225,6 +245,10 @@ class MetalRender {
             encoder.setFragmentBuffer(colorOffset, offset: 0, index: 1)
             let leftShift = pixelBuffer.leftShift == 0 ? leftShiftMatrixBuffer : leftShiftSixMatrixBuffer
             encoder.setFragmentBuffer(leftShift, offset: 0, index: 2)
+            
+            // Custom data
+            updateCustomDataBuffer()
+            encoder.setFragmentBuffer(customDataBuffer, offset: 0, index: 3)
         }
     }
 

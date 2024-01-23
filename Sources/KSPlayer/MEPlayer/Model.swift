@@ -157,7 +157,7 @@ public extension KSOptions {
         if bitDepth == 10 {
             return .bgr10a2Unorm
         } else {
-            return .bgra8Unorm_srgb
+            return .bgr10a2Unorm
         }
     }
 }

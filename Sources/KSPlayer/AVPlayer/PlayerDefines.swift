@@ -145,6 +145,12 @@ public enum DisplayEnum {
     case vrBox
 }
 
+public enum StereoEnum: Int {
+    case mono = 0
+    case leftRight = 1
+    case topBottom = 2
+}
+
 public struct VideoAdaptationState {
     public struct BitRateState {
         let bitRate: Int64

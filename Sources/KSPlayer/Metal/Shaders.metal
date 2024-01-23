@@ -3,6 +3,11 @@
 #include <metal_stdlib>
 using namespace metal;
 
+struct CustomData {
+    int stereoMode;
+    uint frameCounter;
+};
+
 struct VertexIn
 {
     float4 pos [[attribute(0)]];
@@ -29,10 +34,21 @@ vertex VertexOut mapSphereTexture(VertexIn input [[stage_in]], constant float4x4
 }
 
 fragment half4 displayTexture(VertexOut mappingVertex [[ stage_in ]],
-                              texture2d<half, access::sample> texture [[ texture(0) ]]) {
+                              texture2d<half, access::sample> texture [[ texture(0) ]],
+                              constant CustomData& customData [[ buffer(3) ]]) {
     constexpr sampler s(address::clamp_to_edge, filter::linear);
 
-    return half4(texture.sample(s, mappingVertex.textureCoordinate));
+    bool isLeftEye = (customData.frameCounter % 2) == 0;
+    float2 adjustedTexCoord = mappingVertex.textureCoordinate;
+    if (customData.stereoMode == 1) {
+        if (isLeftEye) {
+            adjustedTexCoord.x = adjustedTexCoord.x * 0.5;
+        } else {
+            adjustedTexCoord.x = adjustedTexCoord.x * 0.5 + 0.5;
+        }
+    }
+    
+    return half4(texture.sample(s, adjustedTexCoord));
 }
 
 fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
@@ -42,12 +58,22 @@ fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
                                   sampler textureSampler [[ sampler(0) ]],
                                   constant float3x3& yuvToBGRMatrix [[ buffer(0) ]],
                                   constant float3& colorOffset [[ buffer(1) ]],
-                                  constant uchar3& leftShift [[ buffer(2) ]])
+                                  constant uchar3& leftShift [[ buffer(2) ]],
+                                  constant CustomData& customData [[ buffer(3) ]])
 {
     half3 yuv;
-    yuv.x = yTexture.sample(textureSampler, in.textureCoordinate).r;
-    yuv.y = uTexture.sample(textureSampler, in.textureCoordinate).r;
-    yuv.z = vTexture.sample(textureSampler, in.textureCoordinate).r;
+    bool isLeftEye = (customData.frameCounter % 2) == 0;
+    float2 adjustedTexCoord = in.textureCoordinate;
+    if (customData.stereoMode == 1) {
+        if (isLeftEye) {
+            adjustedTexCoord.x = adjustedTexCoord.x * 0.5;
+        } else {
+            adjustedTexCoord.x = adjustedTexCoord.x * 0.5 + 0.5;
+        }
+    }
+    yuv.x = yTexture.sample(textureSampler, adjustedTexCoord).r;
+    yuv.y = uTexture.sample(textureSampler, adjustedTexCoord).r;
+    yuv.z = vTexture.sample(textureSampler, adjustedTexCoord).r;
     return half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
 }
 
@@ -58,11 +84,21 @@ fragment half4 displayNV12Texture(VertexOut in [[ stage_in ]],
                                   sampler textureSampler [[ sampler(0) ]],
                                   constant float3x3& yuvToBGRMatrix [[ buffer(0) ]],
                                   constant float3& colorOffset [[ buffer(1) ]],
-                                  constant uchar3& leftShift [[ buffer(2) ]])
+                                  constant uchar3& leftShift [[ buffer(2) ]],
+                                  constant CustomData& customData [[ buffer(3) ]])
 {
     half3 yuv;
-    yuv.x = lumaTexture.sample(textureSampler, in.textureCoordinate).r;
-    yuv.yz = chromaTexture.sample(textureSampler, in.textureCoordinate).rg;
+    bool isLeftEye = (customData.frameCounter % 2) == 0;
+    float2 adjustedTexCoord = in.textureCoordinate;
+    if (customData.stereoMode == 1) {
+        if (isLeftEye) {
+            adjustedTexCoord.x = adjustedTexCoord.x * 0.5;
+        } else {
+            adjustedTexCoord.x = adjustedTexCoord.x * 0.5 + 0.5;
+        }
+    }
+    yuv.x = lumaTexture.sample(textureSampler, adjustedTexCoord).r;
+    yuv.yz = chromaTexture.sample(textureSampler, adjustedTexCoord).rg;
     return half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
 }
 

@@ -19,6 +19,18 @@ struct VertexOut {
     float2 textureCoordinate;
 };
 
+inline half4 gammaToLinear(half4 col) {
+    half a = 0.305306011h;  // 使用 'h' 后缀来指明half类型的字面量
+    half b = 0.682171111h;
+    half c = 0.012522878h;
+
+    // 只对颜色的RGB分量进行计算，保留Alpha分量不变
+    half3 colRGB = col.rgb;
+    colRGB = colRGB * (colRGB * (colRGB * a + b) + c);
+
+    return half4(colRGB, col.a); // 重新构建包含修改后的RGB分量和原始Alpha分量的half4
+}
+
 vertex VertexOut mapTexture(VertexIn input [[stage_in]]) {
     VertexOut outVertex;
     outVertex.renderedCoordinate = input.pos;
@@ -48,7 +60,8 @@ fragment half4 displayTexture(VertexOut mappingVertex [[ stage_in ]],
         }
     }
     
-    return half4(texture.sample(s, adjustedTexCoord));
+    half4 col = half4(texture.sample(s, adjustedTexCoord));
+    return gammaToLinear(col);
 }
 
 fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
@@ -74,7 +87,8 @@ fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
     yuv.x = yTexture.sample(textureSampler, adjustedTexCoord).r;
     yuv.y = uTexture.sample(textureSampler, adjustedTexCoord).r;
     yuv.z = vTexture.sample(textureSampler, adjustedTexCoord).r;
-    return half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
+    half4 col = half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
+    return gammaToLinear(col);
 }
 
 
@@ -99,6 +113,9 @@ fragment half4 displayNV12Texture(VertexOut in [[ stage_in ]],
     }
     yuv.x = lumaTexture.sample(textureSampler, adjustedTexCoord).r;
     yuv.yz = chromaTexture.sample(textureSampler, adjustedTexCoord).rg;
-    return half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
+    half4 col = half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
+    return gammaToLinear(col);
 }
+
+
 

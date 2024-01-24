@@ -58,6 +58,12 @@ fragment half4 displayTexture(VertexOut mappingVertex [[ stage_in ]],
         } else {
             adjustedTexCoord.x = adjustedTexCoord.x * 0.5 + 0.5;
         }
+    } else if (customData.stereoMode == 2) {
+        if (isLeftEye) {
+            adjustedTexCoord.y = adjustedTexCoord.y * 0.5;
+        } else {
+            adjustedTexCoord.y = adjustedTexCoord.y * 0.5 + 0.5;
+        }
     }
     
     half4 col = half4(texture.sample(s, adjustedTexCoord));
@@ -86,6 +92,12 @@ fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
             adjustedTexCoord.x = adjustedTexCoord.x * 0.5;
         } else {
             adjustedTexCoord.x = adjustedTexCoord.x * 0.5 + 0.5;
+        }
+    } else if (customData.stereoMode == 2) {
+        if (isLeftEye) {
+            adjustedTexCoord.y = adjustedTexCoord.y * 0.5;
+        } else {
+            adjustedTexCoord.y = adjustedTexCoord.y * 0.5 + 0.5;
         }
     }
     yuv.x = yTexture.sample(textureSampler, adjustedTexCoord).r;
@@ -120,6 +132,12 @@ fragment half4 displayNV12Texture(VertexOut in [[ stage_in ]],
             adjustedTexCoord.x = adjustedTexCoord.x * 0.5;
         } else {
             adjustedTexCoord.x = adjustedTexCoord.x * 0.5 + 0.5;
+        }
+    } else if (customData.stereoMode == 2) {
+        if (isLeftEye) {
+            adjustedTexCoord.y = adjustedTexCoord.y * 0.5;
+        } else {
+            adjustedTexCoord.y = adjustedTexCoord.y * 0.5 + 0.5;
         }
     }
     yuv.x = lumaTexture.sample(textureSampler, adjustedTexCoord).r;

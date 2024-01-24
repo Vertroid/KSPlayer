@@ -61,7 +61,11 @@ fragment half4 displayTexture(VertexOut mappingVertex [[ stage_in ]],
     }
     
     half4 col = half4(texture.sample(s, adjustedTexCoord));
-    return gammaToLinear(col);
+    half4 finalCol = gammaToLinear(col);
+    if (adjustedTexCoord.x < 0.0 || adjustedTexCoord.x > 1.0) {
+        finalCol = half4(0.0, 0.0, 0.0, 1.0);
+    }
+    return finalCol;
 }
 
 fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
@@ -88,7 +92,14 @@ fragment half4 displayYUVTexture(VertexOut in [[ stage_in ]],
     yuv.y = uTexture.sample(textureSampler, adjustedTexCoord).r;
     yuv.z = vTexture.sample(textureSampler, adjustedTexCoord).r;
     half4 col = half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
-    return gammaToLinear(col);
+    half4 finalCol = gammaToLinear(col);
+            if (adjustedTexCoord.x < 0.0 || adjustedTexCoord.x > 1.0) {
+                finalCol = half4(0.0, 0.0, 0.0, 1.0);
+            }
+//    if (customData.displayMode == 3) {
+
+//    }
+    return finalCol;
 }
 
 
@@ -114,7 +125,11 @@ fragment half4 displayNV12Texture(VertexOut in [[ stage_in ]],
     yuv.x = lumaTexture.sample(textureSampler, adjustedTexCoord).r;
     yuv.yz = chromaTexture.sample(textureSampler, adjustedTexCoord).rg;
     half4 col = half4(half3x3(yuvToBGRMatrix)*(yuv*half3(leftShift)+half3(colorOffset)), 1);
-    return gammaToLinear(col);
+    half4 finalCol = gammaToLinear(col);
+    if (adjustedTexCoord.x < 0.0 || adjustedTexCoord.x > 1.0) {
+        finalCol = half4(0.0, 0.0, 0.0, 1.0);
+    }
+    return finalCol;
 }
 
 

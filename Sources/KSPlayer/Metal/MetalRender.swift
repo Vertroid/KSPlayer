@@ -37,6 +37,7 @@ let alignedUniformsSize = (MemoryLayout<UniformsArray>.size + 0xFF) & -0x100
 let maxBuffersInFlight = 3
 
 class MetalRender {
+    static var customBuffer: CustomData = CustomData()
     static var options: KSOptions? = KSOptions()
     static let device = MTLCreateSystemDefaultDevice()!
     let inFlightSemaphore = DispatchSemaphore(value: maxBuffersInFlight)
@@ -49,7 +50,6 @@ class MetalRender {
         return library
     }()
 
-    private var customBuffer: CustomData
     private let worldTracking: WorldTrackingProvider
     private let arSession: ARKitSession
     private let renderPassDescriptor = MTLRenderPassDescriptor()
@@ -112,7 +112,6 @@ class MetalRender {
     }()
 
     public init() {
-        customBuffer = CustomData()
         worldTracking = WorldTrackingProvider()
         arSession = ARKitSession()
         Task {
@@ -220,10 +219,10 @@ class MetalRender {
     }
     
     func updateCustomDataBuffer() {
-        customBuffer.stereoMode = (MetalRender.options?.stereo.rawValue)!
-        customBuffer.frameCounter &+= 1
+        MetalRender.customBuffer.frameCounter &+= 1
+        MetalRender.customBuffer.stereoMode = (MetalRender.options?.stereo.rawValue)!
         let bufferPointer = customDataBuffer?.contents()
-        bufferPointer!.copyMemory(from: &customBuffer, byteCount: MemoryLayout<CustomData>.size)
+        bufferPointer!.copyMemory(from: &MetalRender.customBuffer, byteCount: MemoryLayout<CustomData>.size)
     }
 
     private func setFragmentBuffer(pixelBuffer: PixelBufferProtocol, encoder: MTLRenderCommandEncoder) {

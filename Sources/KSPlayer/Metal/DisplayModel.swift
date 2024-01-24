@@ -16,6 +16,7 @@ extension DisplayEnum {
     private static var planeDisplay = PlaneDisplayModel()
     private static var vrDiaplay = VRDisplayModel()
     private static var vrBoxDiaplay = VRBoxDisplayModel()
+    private static var vrDomeDisplay = VRDomeDisplayModel()
 
     func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
         switch self {
@@ -25,6 +26,8 @@ extension DisplayEnum {
             DisplayEnum.vrDiaplay.set(encoder: encoder, viewMatrix: viewMatrix)
         case .vrBox:
             DisplayEnum.vrBoxDiaplay.set(encoder: encoder, viewMatrix: viewMatrix)
+        case .vrDome:
+            DisplayEnum.vrDomeDisplay.set(encoder: encoder, viewMatrix: viewMatrix)
         }
     }
 
@@ -36,6 +39,8 @@ extension DisplayEnum {
             return DisplayEnum.vrDiaplay.pipeline(planeCount: planeCount, bitDepth: bitDepth)
         case .vrBox:
             return DisplayEnum.vrBoxDiaplay.pipeline(planeCount: planeCount, bitDepth: bitDepth)
+        case .vrDome:
+            return DisplayEnum.vrDomeDisplay.pipeline(planeCount: planeCount, bitDepth: bitDepth)
         }
     }
 }
@@ -209,7 +214,128 @@ private class SphereDisplayModel {
     }
 }
 
+private class DomeDisplayModel {
+    private lazy var yuv = MetalRender.makePipelineState(fragmentFunction: "displayYUVTexture", isSphere: true)
+    private lazy var yuvp010LE = MetalRender.makePipelineState(fragmentFunction: "displayYUVTexture", isSphere: true, bitDepth: 10)
+    private lazy var nv12 = MetalRender.makePipelineState(fragmentFunction: "displayNV12Texture", isSphere: true)
+    private lazy var p010LE = MetalRender.makePipelineState(fragmentFunction: "displayNV12Texture", isSphere: true, bitDepth: 10)
+    private lazy var bgra = MetalRender.makePipelineState(fragmentFunction: "displayTexture", isSphere: true)
+    private var fingerRotationX = Float(0)
+    private var fingerRotationY = Float(0)
+    fileprivate var modelViewMatrix = matrix_identity_float4x4
+    let indexCount: Int
+    let indexType = MTLIndexType.uint16
+    let primitiveType = MTLPrimitiveType.triangle
+    let indexBuffer: MTLBuffer
+    let posBuffer: MTLBuffer?
+    let uvBuffer: MTLBuffer?
+    fileprivate init() {
+        let (indices, positions, uvs) = DomeDisplayModel.genDome()
+        let device = MetalRender.device
+        indexCount = indices.count
+        indexBuffer = device.makeBuffer(bytes: indices, length: MemoryLayout<UInt16>.size * indexCount)!
+        posBuffer = device.makeBuffer(bytes: positions, length: MemoryLayout<simd_float4>.size * positions.count)
+        uvBuffer = device.makeBuffer(bytes: uvs, length: MemoryLayout<simd_float2>.size * uvs.count)
+    }
+
+    func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
+        encoder.setFrontFacing(.clockwise)
+        encoder.setVertexBuffer(posBuffer, offset: 0, index: 0)
+        encoder.setVertexBuffer(uvBuffer, offset: 0, index: 1)
+    }
+
+    func reset() {
+        fingerRotationX = 0
+        fingerRotationY = 0
+        modelViewMatrix = matrix_identity_float4x4
+    }
+
+    private static func genDome() -> ([UInt16], [simd_float4], [simd_float2]) {
+        let slicesCount = UInt16(200)
+        let parallelsCount = slicesCount / 2
+        let indicesCount = Int(slicesCount) * Int(parallelsCount) * 6
+        var indices = [UInt16](repeating: 0, count: indicesCount)
+        var positions = [simd_float4]()
+        var uvs = [simd_float2]()
+        var runCount = 0
+        let radius = Float(10.0)
+        let step = (2.0 * Float.pi) / Float(slicesCount)
+        var i = UInt16(0)
+        while i <= parallelsCount {
+            var j = UInt16(0)
+            while j <= slicesCount {
+                let vertex0 = radius * sinf(step * Float(i)) * cosf(step * Float(j))
+                let vertex1 = radius * cosf(step * Float(i))
+                let vertex2 = radius * sinf(step * Float(i)) * sinf(step * Float(j))
+                let vertex3 = Float(1.0)
+                let vertex4 = Float(j) / Float(slicesCount) * 2.0 - 1.0
+                let vertex5 = Float(i) / Float(parallelsCount)
+                positions.append([vertex0, vertex1, vertex2, vertex3])
+                uvs.append([vertex4, vertex5])
+                if i < parallelsCount, j < slicesCount {
+                    indices[runCount] = i * (slicesCount + 1) + j
+                    runCount += 1
+                    indices[runCount] = UInt16((i + 1) * (slicesCount + 1) + j)
+                    runCount += 1
+                    indices[runCount] = UInt16((i + 1) * (slicesCount + 1) + (j + 1))
+                    runCount += 1
+                    indices[runCount] = UInt16(i * (slicesCount + 1) + j)
+                    runCount += 1
+                    indices[runCount] = UInt16((i + 1) * (slicesCount + 1) + (j + 1))
+                    runCount += 1
+                    indices[runCount] = UInt16(i * (slicesCount + 1) + (j + 1))
+                    runCount += 1
+                }
+                j += 1
+            }
+            i += 1
+        }
+        return (indices, positions, uvs)
+    }
+
+    func pipeline(planeCount: Int, bitDepth: Int32) -> MTLRenderPipelineState {
+        switch planeCount {
+        case 3:
+            if bitDepth == 10 {
+                return yuvp010LE
+            } else {
+                return yuv
+            }
+        case 2:
+            if bitDepth == 10 {
+                return p010LE
+            } else {
+                return nv12
+            }
+        case 1:
+            return bgra
+        default:
+            return bgra
+        }
+    }
+}
+
 private class VRDisplayModel: SphereDisplayModel {
+    private let modelViewProjectionMatrix: simd_float4x4
+    override required init() {
+        let size = KSOptions.sceneSize
+        let aspect = Float(size.width / size.height)
+        let projectionMatrix = simd_float4x4(perspective: Float.pi / 3, aspect: aspect, nearZ: 0.1, farZ: 400.0)
+        let viewMatrix = simd_float4x4(lookAt: SIMD3<Float>.zero, center: [0, 0, -1000], up: [0, 1, 0])
+        modelViewProjectionMatrix = projectionMatrix * viewMatrix
+        super.init()
+    }
+
+    override func set(encoder: MTLRenderCommandEncoder, viewMatrix: simd_float4x4) {
+        super.set(encoder: encoder, viewMatrix: viewMatrix)
+        var matrix = modelViewProjectionMatrix * modelViewMatrix * viewMatrix
+        let matrixBuffer = MetalRender.device.makeBuffer(bytes: &matrix, length: MemoryLayout<simd_float4x4>.size)
+        encoder.setVertexBuffer(matrixBuffer, offset: 0, index: 2)
+        encoder.drawIndexedPrimitives(type: primitiveType, indexCount: indexCount, indexType: indexType, indexBuffer: indexBuffer, indexBufferOffset: 0)
+    }
+}
+
+private class VRDomeDisplayModel: DomeDisplayModel {
     private let modelViewProjectionMatrix: simd_float4x4
     override required init() {
         let size = KSOptions.sceneSize

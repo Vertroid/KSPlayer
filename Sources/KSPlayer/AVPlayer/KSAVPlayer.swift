@@ -215,6 +215,9 @@ public class KSAVPlayer {
             guard let self else { return }
             self.observer(playerItem: player.currentItem)
         }
+        
+        self.playerLayer.cornerRadius = options.cornerRadius
+        self.playerLayer.masksToBounds = true
     }
 }
 

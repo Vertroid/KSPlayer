@@ -59,6 +59,7 @@ public final class MetalPlayView: UIView, VideoOutput {
     /// 用DispatchSourceTimer的话，在播放4k视频的时候repeat的时间会变长,
     /// 用MTKView的draw(in:)也是不行，会卡顿
     private var displayLink: CADisplayLink!
+    private var idleLink: CADisplayLink!
 //    private let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
     public var options: KSOptions
     public weak var renderSource: OutputRenderSourceDelegate?
@@ -89,19 +90,21 @@ public final class MetalPlayView: UIView, VideoOutput {
         metalView.isHidden = true
         //        displayLink = CADisplayLink(block: renderFrame)
         displayLink = CADisplayLink(target: self, selector: #selector(renderFrame))
+        idleLink = CADisplayLink(target: self, selector: #selector(renderIdle))
         // 一定要用common。不然在视频上面操作view的话，那就会卡顿了。
         displayLink.add(to: .main, forMode: .common)
-        
-        pause()
+        idleLink.add(to: .main, forMode: .common)
     }
 
     public func play() {
         displayLink.isPaused = false
+        idleLink.isPaused = true
         resize()
     }
 
     public func pause() {
         displayLink.isPaused = true
+        idleLink.isPaused = false
     }
 
     @available(*, unavailable)
@@ -220,6 +223,10 @@ extension MetalPlayView {
     @objc private func renderFrame() {
         draw(force: false)
     }
+    
+    @objc private func renderIdle() {
+        idle()
+    }
 
     private func draw(force: Bool) {
         autoreleasepool {
@@ -266,6 +273,36 @@ extension MetalPlayView {
                 metalView.draw(pixelBuffer: pixelBuffer, display: options.display, size: size)
             }
             renderSource?.setVideo(time: cmtime)
+        }
+    }
+    
+    private func idle() {
+        autoreleasepool {
+            guard let pixelBuffer else {
+                return
+            }
+
+            let par = pixelBuffer.size
+            let sar = pixelBuffer.aspectRatio
+            if let pixelBuffer = pixelBuffer.cvPixelBuffer, !options.isUseDisplayLayer() {
+                if !displayView.isHidden {
+                    displayView.isHidden = true
+                    metalView.isHidden = false
+                    displayView.displayLayer.flushAndRemoveImage()
+                }
+                let size: CGSize
+                if options.display == .plane {
+                    if let dar = options.customizeDar(sar: sar, par: par) {
+                        size = CGSize(width: par.width, height: par.width * dar.height / dar.width)
+                    } else {
+                        size = CGSize(width: par.width, height: par.height * sar.height / sar.width)
+                    }
+                } else {
+                    size = KSOptions.sceneSize
+                }
+                checkFormatDescription(pixelBuffer: pixelBuffer)
+                metalView.draw(pixelBuffer: pixelBuffer, display: options.display, size: size)
+            }
         }
     }
 

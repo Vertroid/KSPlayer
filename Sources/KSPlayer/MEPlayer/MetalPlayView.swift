@@ -158,6 +158,7 @@ public final class MetalPlayView: UIView, VideoOutput {
 
     public func invalidate() {
         displayLink.invalidate()
+        idleLink.invalidate()
     }
 
     public func readNextFrame() {
